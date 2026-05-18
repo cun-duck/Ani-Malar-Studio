@@ -18,43 +18,9 @@ async function startServer() {
     next();
   });
 
-  // BFF Proxy for Magnific AI
-  app.all('/api/magnific/*', async (req, res) => {
-    const userApiKey = req.headers['x-user-api-key'];
-
-    if (!userApiKey) {
-      return res.status(401).json({ error: "API Key diperlukan di dashboard" });
-    }
-
-    // Ambil path setelah /api/magnific
-    const endpointPath = req.path.replace('/api/magnific', '');
-    const queryParams = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
-    const targetUrl = `https://api.magnific.com${endpointPath}${queryParams}`;
-
-    console.log(`Proxying request to: ${targetUrl}`);
-
-    try {
-      const magnificResponse = await fetch(targetUrl, {
-        method: req.method,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-magnific-api-key': userApiKey as string,
-        },
-        body: req.method !== 'GET' && req.method !== 'HEAD' ? JSON.stringify(req.body) : undefined
-      });
-
-      const data = await magnificResponse.json().catch(() => null);
-      
-      if (!magnificResponse.ok) {
-        console.error("Magnific API Error:", data);
-        return res.status(magnificResponse.status).json(data || { error: "Terjadi kesalahan pada Magnific API" });
-      }
-
-      return res.status(magnificResponse.status).json(data || {});
-    } catch (error) {
-      console.error("Proxy Network Error:", error);
-      return res.status(500).json({ error: "Koneksi ke server Magnific gagal" });
-    }
+  // API routes go here FIRST
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok" });
   });
 
   // Vite middleware for development

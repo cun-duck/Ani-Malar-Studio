@@ -6,7 +6,10 @@ export interface Task {
   getEndpoint: string;
   status: 'pending' | 'completed' | 'failed';
   resultUrl?: string; // e.g. final video/image URL
+  batchResults?: any[]; // For models that return multiple results (like Suno)
+  error?: string; // error message if failed
   createdAt: number;
+  provider?: 'magnific' | 'kie';
 }
 
 export interface ToastMessage {
@@ -16,16 +19,16 @@ export interface ToastMessage {
 }
 
 interface AppState {
-  apiKey: string;
-  setApiKey: (key: string) => void;
+  kieApiKey: string;
+  setKieApiKey: (key: string) => void;
+  credits: number | null;
+  setCredits: (val: number | null) => void;
   tasks: Task[];
   addTask: (task: Omit<Task, 'createdAt' | 'status'>) => void;
-  updateTaskStatus: (id: string, status: Task['status'], resultUrl?: string) => void;
+  updateTaskStatus: (id: string, status: Task['status'], resultUrl?: string, error?: string, batchResults?: any[]) => void;
   clearTasks: () => void;
   isDarkMode: boolean;
   toggleDarkMode: () => void;
-  apiMode: 'direct' | 'proxy';
-  setApiMode: (mode: 'direct' | 'proxy') => void;
   toasts: ToastMessage[];
   showToast: (message: string, type?: ToastMessage['type']) => void;
   removeToast: (id: number) => void;
@@ -34,10 +37,10 @@ interface AppState {
 const AppContext = createContext<AppState | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [apiKey, setApiKey] = useState<string>('');
+  const [kieApiKey, setKieApiKey] = useState<string>('');
+  const [credits, setCredits] = useState<number | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
-  const [apiMode, setApiMode] = useState<'direct' | 'proxy'>('direct');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const showToast = (message: string, type: ToastMessage['type'] = 'info') => {
@@ -54,10 +57,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Load from LocalStorage
   useEffect(() => {
-    const storedKey = localStorage.getItem('magnific_api_key');
-    if (storedKey) setApiKey(storedKey);
+    const storedKieKey = localStorage.getItem('kie_api_key');
+    if (storedKieKey) setKieApiKey(storedKieKey);
 
-    const storedTasks = localStorage.getItem('magnific_tasks');
+    const storedTasks = localStorage.getItem('ani_malar_tasks');
     if (storedTasks) {
       try {
         setTasks(JSON.parse(storedTasks));
@@ -66,7 +69,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const storedTheme = localStorage.getItem('magnific_theme');
+    const storedTheme = localStorage.getItem('ani_malar_theme');
     if (storedTheme === 'dark') {
       setIsDarkMode(true);
       document.documentElement.classList.add('dark');
@@ -77,39 +80,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIsDarkMode(true);
       document.documentElement.classList.add('dark');
     }
-
-    const storedApiMode = localStorage.getItem('magnific_api_mode');
-    if (storedApiMode === 'proxy') {
-      setApiMode('proxy');
-    } else {
-      setApiMode('direct');
-    }
   }, []);
 
   // Save changes to LocalStorage
   useEffect(() => {
-    if (apiKey) {
-      localStorage.setItem('magnific_api_key', apiKey);
+    if (kieApiKey) {
+      localStorage.setItem('kie_api_key', kieApiKey);
     } else {
-      localStorage.removeItem('magnific_api_key');
+      localStorage.removeItem('kie_api_key');
     }
-  }, [apiKey]);
+  }, [kieApiKey]);
 
   useEffect(() => {
-    localStorage.setItem('magnific_tasks', JSON.stringify(tasks));
+    localStorage.setItem('ani_malar_tasks', JSON.stringify(tasks));
   }, [tasks]);
-
-  useEffect(() => {
-    localStorage.setItem('magnific_api_mode', apiMode);
-  }, [apiMode]);
 
   const addTask = (task: Omit<Task, 'createdAt' | 'status'>) => {
     setTasks(prev => [{ ...task, status: 'pending', createdAt: Date.now() }, ...prev]);
   };
 
-  const updateTaskStatus = (id: string, status: Task['status'], resultUrl?: string) => {
+  const updateTaskStatus = (id: string, status: Task['status'], resultUrl?: string, error?: string, batchResults?: any[]) => {
     setTasks(prev => 
-      prev.map(t => t.id === id ? { ...t, status, resultUrl: resultUrl || t.resultUrl } : t)
+      prev.map(t => t.id === id ? { 
+        ...t, 
+        status, 
+        resultUrl: resultUrl || t.resultUrl, 
+        error: error || t.error,
+        batchResults: batchResults || t.batchResults 
+      } : t)
     );
   };
 
@@ -118,7 +116,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const toggleDarkMode = () => {
     setIsDarkMode(prev => {
       const newVal = !prev;
-      localStorage.setItem('magnific_theme', newVal ? 'dark' : 'light');
+      localStorage.setItem('ani_malar_theme', newVal ? 'dark' : 'light');
       if (newVal) {
         document.documentElement.classList.add('dark');
       } else {
@@ -129,7 +127,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AppContext.Provider value={{ apiKey, setApiKey, tasks, addTask, updateTaskStatus, clearTasks, isDarkMode, toggleDarkMode, apiMode, setApiMode, toasts, showToast, removeToast }}>
+    <AppContext.Provider value={{ kieApiKey, setKieApiKey, credits, setCredits, tasks, addTask, updateTaskStatus, clearTasks, isDarkMode, toggleDarkMode, toasts, showToast, removeToast }}>
       {children}
     </AppContext.Provider>
   );

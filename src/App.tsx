@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppProvider, useAppContext } from './context/AppContext';
-import { Home, Sparkles, ListVideo, Settings, Key, AlertCircle, PlayCircle, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Home, Sparkles, ListVideo, Settings, Key, AlertCircle, PlayCircle, Loader2, Image as ImageIcon, Music, Disc, Download, ExternalLink } from 'lucide-react';
 import { cn } from './lib/utils';
 import imageCompression from 'browser-image-compression';
 
@@ -28,24 +28,14 @@ function ToastContainer() {
     </div>
   );
 }
-
 // --- API Service Wrapper ---
-async function magnificApi(endpoint: string, apiKey: string, body?: any, method = 'POST', apiMode: 'direct' | 'proxy' = 'direct') {
-  // apiMode 'direct' memicu fetch langsung ke Magnific API (menggunakan IP user)
-  // apiMode 'proxy' memicu fetch melalui server route /api/magnific (menggunakan IP server)
-  const targetUrl = apiMode === 'direct' 
-    ? `https://api.magnific.com${endpoint}`
-    : `/api/magnific${endpoint}`;
+async function kieApi(endpoint: string, apiKey: string, body?: any, method = 'POST') {
+  const targetUrl = `https://api.kie.ai${endpoint}`;
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${apiKey}`
   };
-
-  if (apiMode === 'direct') {
-    headers['x-magnific-api-key'] = apiKey;
-  } else {
-    headers['x-user-api-key'] = apiKey;
-  }
 
   const res = await fetch(targetUrl, {
     method,
@@ -53,22 +43,35 @@ async function magnificApi(endpoint: string, apiKey: string, body?: any, method 
     body: body ? JSON.stringify(body) : undefined
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const errorMsg = data.message || data.error || (data.invalid_params ? JSON.stringify(data.invalid_params) : `${res.status} ${res.statusText} - API Request Failed`);
+  if (!res.ok || (data.code && data.code !== 200)) {
+    const errorMsg = data.msg || data.message || data.error || `${res.status} ${res.statusText} - Kie API Request Failed`;
     throw new Error(errorMsg);
   }
   return data;
 }
 
+async function uploadToCloudinary(file: File | Blob) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', 'magnify');
+  const res = await fetch('https://api.cloudinary.com/v1_1/dv4ar152y/auto/upload', {
+    method: 'POST',
+    body: formData
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || 'Upload gagal');
+  return data.secure_url;
+}
+
 // --- Views ---
 
 function SettingsView() {
-  const { apiKey, setApiKey, isDarkMode, toggleDarkMode, apiMode, setApiMode, showToast } = useAppContext();
-  const [inputVal, setInputVal] = useState(apiKey);
+  const { kieApiKey, setKieApiKey, isDarkMode, toggleDarkMode, showToast } = useAppContext();
+  const [kieInputVal, setKieInputVal] = useState(kieApiKey || '');
 
-  const handleSave = () => {
-    setApiKey(inputVal);
-    showToast("API Key berhasil disimpan di localStorage perangkat Anda.", "success");
+  const handleSaveKie = () => {
+    setKieApiKey(kieInputVal || '');
+    showToast("Kie API Key berhasil disimpan.", "success");
   };
 
   return (
@@ -78,29 +81,31 @@ function SettingsView() {
           <Key size={32} />
         </div>
         <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Ani Malar Studio</h2>
-        <p className="text-gray-500 dark:text-gray-400 text-sm">Gunakan API Key Anda untuk akses penuh tanpa batas.</p>
+        <p className="text-gray-500 dark:text-gray-400 text-sm">Gunakan API Key Kie AI Anda untuk akses penuh.</p>
       </div>
 
       <div className="glass-pink dark:glass-dark p-4 rounded-xl flex gap-3 text-pink-800 dark:text-pink-200 text-sm">
         <AlertCircle className="shrink-0" size={20} />
-        <p>Aplikasi ini bersifat Stateless. Kunci API hanya tersimpan aman di browser Anda dan tidak dikirim ke server pihak ketiga manapun selain API endpoint utama.</p>
+        <p>Aplikasi ini bersifat Stateless. Kunci API hanya tersimpan aman di browser Anda dan tidak dikirim ke server pihak ketiga manapun.</p>
       </div>
 
       <div className="space-y-3">
-        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">API Key</label>
-        <input 
-          type="password"
-          value={inputVal}
-          onChange={(e) => setInputVal(e.target.value)}
-          placeholder="sk-..."
-          className="w-full px-4 py-3 glass dark:glass-dark border-none rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400 transition-shadow dark:text-white"
-        />
-        <button 
-          onClick={handleSave}
-          className="w-full bg-pink-500 text-white font-semibold py-3 rounded-xl hover:bg-pink-600 transition shadow-lg shadow-pink-200 dark:shadow-none"
-        >
-          Simpan Key
-        </button>
+        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Kie AI API Key</label>
+        <div className="flex gap-2">
+          <input 
+            type="password"
+            value={kieInputVal || ''}
+            onChange={(e) => setKieInputVal(e.target.value)}
+            placeholder="Bearer token..."
+            className="flex-1 px-4 py-3 glass dark:glass-dark border-none rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-400 transition-shadow dark:text-white"
+          />
+          <button 
+            onClick={handleSaveKie}
+            className="bg-pink-500 text-white font-semibold px-6 rounded-xl hover:bg-pink-600 transition shadow-lg shadow-pink-200 dark:shadow-none"
+          >
+            Save
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center justify-between mt-6 p-4 glass dark:glass-dark rounded-xl shadow-sm">
@@ -121,200 +126,203 @@ function SettingsView() {
           )} />
         </button>
       </div>
-
-      <div className="p-4 glass dark:glass-dark rounded-xl shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <h3 className="font-semibold text-gray-800 dark:text-gray-200">Koneksi Langsung (Anti-Block)</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Gunakan IP individual untuk menghindari pemblokiran server.</p>
-          </div>
-          <button 
-            onClick={() => {
-              const newMode = apiMode === 'direct' ? 'proxy' : 'direct';
-              setApiMode(newMode);
-              showToast(`Mode koneksi diubah ke ${newMode === 'direct' ? 'Langsung' : 'Proxy'}.`, "info");
-            }}
-            className={cn(
-              "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-              apiMode === 'direct' ? "bg-pink-500" : "bg-gray-300 dark:bg-gray-600"
-            )}
-          >
-            <span className={cn(
-              "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-              apiMode === 'direct' ? "translate-x-6" : "translate-x-1"
-            )} />
-          </button>
-        </div>
-
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 rounded-lg text-[10px] text-blue-800 dark:text-blue-200">
-          <p className="font-bold mb-1">Status Mode:</p>
-          {apiMode === 'direct' ? (
-            <div className="space-y-1">
-              <p>âœ… <b>Mode Langsung Aktif:</b> Permintaan dikirim langsung dari browser Anda ke Magnific. Ini solusi terbaik untuk error "Suspicious Activity" atau "Shared IP Limit".</p>
-              <p className="opacity-70 italic">* Jika request gagal/CORS, gunakan browser extension "Allow CORS" atau matikan mode ini.</p>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              <p>âš ï¸ <b>Mode Proxy Aktif:</b> Permintaan dikirim melalui server aplikasi. Jika banyak user menggunakan aplikasi ini sekaligus, Magnific mungkin memblokir IP server kami (Suspicious Activity).</p>
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
 
 function CreateView() {
-  const { apiKey, apiMode, addTask, showToast } = useAppContext();
+  const { kieApiKey, addTask, showToast, credits, setCredits } = useAppContext();
   const [activeTool, setActiveTool] = useState<string | null>(null);
 
-  // Tools Configuration based on docs
+  const fetchCredits = React.useCallback(async () => {
+    if (!kieApiKey) return;
+    try {
+      const res = await kieApi('/api/v1/chat/credit', kieApiKey, undefined, 'GET');
+      if (res.code === 200) {
+        setCredits(res.data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch credits", e);
+    }
+  }, [kieApiKey, setCredits]);
+
+  React.useEffect(() => {
+    fetchCredits();
+  }, [fetchCredits]);
+
+  // Tools Configuration
   const tools = [
-    { id: 'happy-horse', name: 'Happy Horse 1.0 (R2V)', desc: 'Gen video dari referensi karakter', endpoint: '/v1/ai/reference-to-video/happy-horse-1', type: 'gen', multipleImages: true, maxImages: 9, payloadField: 'image_urls', promptOptional: false,
-      preparePayload: (payload: any, images: string[], videoUrl: string, audioUrl: string) => {
-         if (images.length > 0) payload.image_urls = images.map(url => ({url}));
-      },
-      params: [
-        { name: 'aspect_ratio', label: 'Aspect Ratio', type: 'select', options: ['16:9', '9:16', '1:1', '4:3', '3:4'], default: '16:9' },
-        { name: 'resolution', label: 'Resolution', type: 'select', options: ['720P', '1080P'], default: '1080P' },
-        { name: 'duration', label: 'Duration (s)', type: 'number', min: 3, max: 15, default: 5 },
-        { name: 'watermark', label: 'Watermark', type: 'boolean', default: false },
-        { name: 'seed', label: 'Seed', type: 'number', min: 0, max: 2147483647, optional: true }
-      ]
-    },
-    { id: 'happy-horse-batch', name: 'Happy Horse 1.0 Batch Mode', desc: 'Gen video 4 Batch Sekaligus', endpoint: '/v1/ai/reference-to-video/happy-horse-1', type: 'gen', isBatch: true, multipleImages: true, maxImages: 9, payloadField: 'image_urls', promptOptional: false,
-      preparePayload: (payload: any, images: string[], videoUrl: string, audioUrl: string) => {
-         if (images.length > 0) payload.image_urls = images.map(url => ({url}));
-      },
-      params: [
-        { name: 'aspect_ratio', label: 'Aspect Ratio', type: 'select', options: ['16:9', '9:16', '1:1', '4:3', '3:4'], default: '16:9' },
-        { name: 'resolution', label: 'Resolution', type: 'select', options: ['720P', '1080P'], default: '1080P' },
-        { name: 'duration', label: 'Duration (s)', type: 'number', min: 3, max: 15, default: 5 },
-        { name: 'watermark', label: 'Watermark', type: 'boolean', default: false },
-        { name: 'seed', label: 'Seed', type: 'number', min: 0, max: 2147483647, optional: true }
-      ]
-    },
-    { id: 'grok-imagine-i2v', name: 'GROK IMAGINE Image to Video', desc: 'Gen video high-end dari gambar (Mendukung Start & End Frame)', endpoint: '/v1/ai/image-to-video/ltx-2-pro', type: 'gen', multipleImages: true, maxImages: 2, promptOptional: false,
-      preparePayload: (payload: any, images: string[]) => {
-         if (images.length > 0) payload.image_url = images[0];
-         if (images.length > 1) payload.last_image_url = images[1];
-      },
-      params: [
-        { name: 'resolution', label: 'Resolution', type: 'select', options: ['1080p', '1440p', '2160p'], default: '1080p' },
-        { name: 'duration', label: 'Duration (s)', type: 'select', options: [6, 8, 10], default: 6 },
-        { name: 'fps', label: 'FPS', type: 'select', options: [25, 50], default: 25 },
-        { name: 'generate_audio', label: 'Generate Audio', type: 'boolean', default: true },
-        { name: 'seed', label: 'Seed', type: 'number', min: 0, max: 4294967295, optional: true }
-      ]
-    },
-    { id: 'wan-2-7-r2v', name: 'WAN 2.7 (R2V)', desc: 'Gen video referensi (Max 5 Image)', endpoint: '/v1/ai/reference-to-video/wan-2-7', type: 'gen', multipleImages: true, maxImages: 5, payloadField: 'image_urls', promptOptional: false,
-      preparePayload: (payload: any, images: string[], videoUrl: string, audioUrl: string) => {
-         if (images.length > 0) payload.image_urls = images.map(url => ({url}));
-      },
-      params: [
-        { name: 'aspect_ratio', label: 'Aspect Ratio', type: 'select', options: ['16:9', '9:16', '1:1', '4:3', '3:4'], default: '16:9' },
-        { name: 'resolution', label: 'Resolution', type: 'select', options: ['720P', '1080P'], default: '1080P' },
-        { name: 'duration', label: 'Duration (s)', type: 'number', min: 2, max: 10, default: 5 },
-        { name: 'negative_prompt', label: 'Negative Prompt', type: 'text', optional: true },
-        { name: 'seed', label: 'Seed', type: 'number', min: 0, max: 2147483647, optional: true }
-      ]
-    },
-    { id: 'kling-v3-motion-pro', name: 'Kling 3 Pro Motion Control', desc: 'Transfer animasi/motion', endpoint: '/v1/ai/video/kling-v3-motion-control-pro', type: 'edit', requiresImage: true, requiresVideo: true, imageField: 'image_url', videoField: 'video_url', promptOptional: true,
-      params: [
-        { name: 'character_orientation', label: 'Orientation', type: 'select', options: ['video', 'image'], default: 'video' },
-        { name: 'cfg_scale', label: 'CFG Scale', type: 'number', min: 0, max: 1, step: 0.1, default: 0.5 }
-      ]
-    },
-    { id: 'kling-v2-6-motion-pro', name: 'Kling 2.6 Pro Motion Control', desc: 'Transfer animasi/motion', endpoint: '/v1/ai/video/kling-v2-6-motion-control-pro', type: 'edit', requiresImage: true, requiresVideo: true, imageField: 'image_url', videoField: 'video_url', promptOptional: true,
-      params: [
-        { name: 'character_orientation', label: 'Orientation', type: 'select', options: ['video', 'image'], default: 'video' },
-        { name: 'cfg_scale', label: 'CFG Scale', type: 'number', min: 0, max: 1, step: 0.1, default: 0.5 }
-      ]
-    },
-    { id: 'kling-v2-6-motion-std', name: 'Kling 2.6 Std Motion Control', desc: 'Transfer animasi/motion', endpoint: '/v1/ai/video/kling-v2-6-motion-control-std', type: 'edit', requiresImage: true, requiresVideo: true, imageField: 'image_url', videoField: 'video_url', promptOptional: true,
-      params: [
-        { name: 'character_orientation', label: 'Orientation', type: 'select', options: ['video', 'image'], default: 'video' },
-        { name: 'cfg_scale', label: 'CFG Scale', type: 'number', min: 0, max: 1, step: 0.1, default: 0.5 }
-      ]
-    },
-    { id: 'happy-horse-video-edit', name: 'Happy Horse 1.0 Video Edit', desc: 'Edit video (opsional pakai Max 5 Image ref)', endpoint: '/v1/ai/video-edit/happy-horse-1', type: 'edit', requiresVideo: true, videoField: 'video_url', multipleImages: true, maxImages: 5, payloadField: 'image_urls', promptOptional: false,
-      params: [
-        { name: 'resolution', label: 'Resolution', type: 'select', options: ['720P', '1080P'], default: '1080P' },
-        { name: 'audio_setting', label: 'Audio Setting', type: 'select', options: ['auto', 'origin'], default: 'auto' },
-        { name: 'seed', label: 'Seed', type: 'number', min: 0, max: 2147483647, optional: true }
-      ]
-    },
-    { id: 'runway-act-two', name: 'RunWay Act Two', desc: 'Sintesis ekspresi & postur', endpoint: '/v1/ai/video/runway-act-two', type: 'edit', requiresImage: true, requiresVideo: true, promptOptional: true, hidePrompt: true,
+    { id: 'kling-v3-hybrid', name: 'Kling 3.0 Motion Control Hybrid', desc: 'Sintesis ekspresi & postur (Hybrid)', endpoint: '/api/v1/jobs/createTask', type: 'edit', provider: 'kie', requiresImage: true, requiresVideo: true, promptOptional: true, hidePrompt: true,
       preparePayload: (payload: any, images: string[], videoUrl: string) => {
-         payload.character = { type: 'image', uri: images[0] };
-         payload.reference = { type: 'video', uri: videoUrl };
-         delete payload.prompt;
+        const resolution = payload.resolution || '480p';
+        payload.model = 'wan/2-2-animate-move';
+        payload.callBackUrl = 'playground';
+        payload.input = {
+          image_url: images[0],
+          video_url: videoUrl,
+          resolution: resolution,
+          nsfw_checker: false
+        };
+        // Clean up root level params to comply with Wan API schema
+        delete payload.resolution;
+        delete payload.prompt;
       },
       params: [
-        { name: 'ratio', label: 'Aspect Ratio', type: 'select', options: ['1280:720', '720:1280', '1104:832', '832:1104', '960:960', '1584:672'], default: '1280:720' },
-        { name: 'body_control', label: 'Body Control', type: 'boolean', default: true },
-        { name: 'expression_intensity', label: 'Expression Intensity', type: 'number', min: 1, max: 5, default: 3 },
-        { name: 'seed', label: 'Seed', type: 'number', min: 0, max: 4294967295, optional: true }
+        { name: 'resolution', label: 'Resolution', type: 'select', options: ['480p', '580p', '720p'], default: '480p' }
       ]
     },
-    { id: 'veed-fabric-1-0-fast', name: 'Veed Fabric 1.0 Fast', desc: 'Lip sync dari audio', endpoint: '/v1/ai/lip-sync/veed-fabric-1-0-fast', type: 'lipsync', requiresImage: true, requiresAudio: true, imageField: 'image_url', audioField: 'audio_url', promptOptional: true, hidePrompt: true,
+    { id: 'kling-v2-6', name: 'Kling 2.6 Motion Control', desc: 'Gerak ekspresif dengan detail tinggi (Replace).', endpoint: '/api/v1/jobs/createTask', type: 'edit', provider: 'kie', requiresImage: true, requiresVideo: true, promptOptional: true, hidePrompt: true,
+      preparePayload: (payload: any, images: string[], videoUrl: string) => {
+        const resolution = payload.resolution || '480p';
+        payload.model = 'wan/2-2-animate-replace';
+        payload.callBackUrl = 'playground';
+        payload.input = {
+          image_url: images[0],
+          video_url: videoUrl,
+          resolution: resolution,
+          nsfw_checker: false
+        };
+        // Clean up root level params to comply with Wan API schema
+        delete payload.resolution;
+        delete payload.prompt;
+      },
       params: [
-        { name: 'resolution', label: 'Resolution', type: 'select', options: ['720p', '480p'], default: '720p' }
+        { name: 'resolution', label: 'Resolution', type: 'select', options: ['480p', '580p', '720p'], default: '480p' }
+      ]
+    },
+    { id: 'grok-imagine-i2v', name: 'Grok Imagine Image to Video', desc: 'Kontrol gerak sinematik dari referensi gambar (Up to 7 images).', endpoint: '/api/v1/jobs/createTask', type: 'edit', provider: 'kie', requiresImage: true, multipleImages: true, maxImages: 7,
+      preparePayload: (payload: any, images: string[]) => {
+        payload.model = 'grok-imagine/image-to-video';
+        payload.callBackUrl = 'playground';
+        payload.input = {
+          image_urls: images.filter(url => !!url),
+          prompt: payload.prompt,
+          mode: payload.mode || 'normal',
+          duration: payload.duration ? String(payload.duration) : '6',
+          resolution: payload.resolution || '480p',
+          aspect_ratio: payload.aspect_ratio || '16:9',
+          nsfw_checker: false
+        };
+        // Clean up root level params
+        delete payload.mode;
+        delete payload.duration;
+        delete payload.resolution;
+        delete payload.aspect_ratio;
+        delete payload.prompt;
+      },
+      params: [
+        { name: 'mode', label: 'Motion Mode', type: 'select', options: ['normal', 'fun', 'spicy'], default: 'normal' },
+        { name: 'duration', label: 'Duration (6-30s)', type: 'number', min: 6, max: 30, step: 1, default: 6 },
+        { name: 'resolution', label: 'Resolution', type: 'select', options: ['480p', '720p'], default: '480p' },
+        { name: 'aspect_ratio', label: 'Aspect Ratio', type: 'select', options: ['16:9', '9:16', '1:1', '3:2', '2:3'], default: '16:9' }
+      ]
+    },
+    { id: 'suno-v5-5', name: 'Suno Music Generator', desc: 'Hasilkan musik lengkap dengan vokal dan cover art (Suno AI).', endpoint: '/api/v1/generate', type: 'audio', provider: 'kie', requiresPrompt: true, icon: 'music', promptPlaceholder: 'Tuliskan deskripsi musik atau lirik lagu (Lyrics)...',
+      preparePayload: (payload: any) => {
+        payload.customMode = payload.customMode === 'true' || payload.customMode === true;
+        payload.instrumental = payload.instrumental === 'true' || payload.instrumental === true;
+        payload.callBackUrl = 'playground';
+        
+        if (!payload.customMode) {
+          delete payload.style;
+          delete payload.title;
+          delete payload.vocalGender;
+        }
+      },
+      params: [
+        { name: 'model', label: 'Model Version', type: 'select', options: ['V5_5', 'V5', 'V4_5PLUS', 'V4_5', 'V4_5ALL', 'V4'], default: 'V5_5' },
+        { name: 'customMode', label: 'Mode Kustom', type: 'select', options: ['false', 'true'], default: 'false' },
+        { name: 'instrumental', label: 'Instrumental', type: 'select', options: ['false', 'true'], default: 'false' },
+        { name: 'vocalGender', label: 'Vocal Gender (Custom)', type: 'select', options: ['m', 'f'], default: 'm', optional: true },
+        { name: 'style', label: 'Gaya Musik (Custom)', type: 'text', placeholder: 'e.g. Acoustic Pop, Cyberpunk' },
+        { name: 'title', label: 'Judul Lagu (Custom)', type: 'text', placeholder: 'Judul Lagu' },
+        { name: 'negativeTags', label: 'Negative Tags', type: 'text', placeholder: 'e.g. Heavy Metal, Fast' }
+      ]
+    },
+    { id: 'suno-upload-cover', name: 'Suno Audio Transformation', desc: 'Ubah gaya audio yang diupload menjadi musik baru (Cover).', endpoint: '/api/v1/generate/upload-cover', type: 'audio', provider: 'kie', requiresPrompt: true, requiresAudio: true, audioField: 'uploadUrl', icon: 'music', promptPlaceholder: 'Tuliskan deskripsi gaya musik baru (Style)...',
+      preparePayload: (payload: any) => {
+        payload.customMode = payload.customMode === 'true' || payload.customMode === true;
+        payload.instrumental = payload.instrumental === 'true' || payload.instrumental === true;
+        payload.callBackUrl = 'playground';
+        
+        if (!payload.customMode) {
+          delete payload.style;
+          delete payload.title;
+          delete payload.vocalGender;
+        }
+      },
+      params: [
+        { name: 'model', label: 'Model Version', type: 'select', options: ['V5_5', 'V5', 'V4_5PLUS', 'V4_5', 'V4_5ALL', 'V4'], default: 'V5_5' },
+        { name: 'customMode', label: 'Mode Kustom', type: 'select', options: ['false', 'true'], default: 'false' },
+        { name: 'instrumental', label: 'Instrumental', type: 'select', options: ['false', 'true'], default: 'false' },
+        { name: 'vocalGender', label: 'Vocal Gender (Custom)', type: 'select', options: ['m', 'f'], default: 'm', optional: true },
+        { name: 'style', label: 'Gaya Musik (Custom)', type: 'text', placeholder: 'e.g. Acoustic Pop, Cyberpunk' },
+        { name: 'title', label: 'Judul Lagu (Custom)', type: 'text', placeholder: 'Judul Lagu' }
       ]
     }
   ];
 
   if (activeTool) {
     const defaultTool = tools.find(t => t.id === activeTool)!;
-    if (defaultTool.isBatch) {
-      return <BatchGenerateForm tool={defaultTool} onBack={() => setActiveTool(null)} />;
-    }
-    return <GenerateForm tool={defaultTool} onBack={() => setActiveTool(null)} />;
+    return <GenerateForm tool={defaultTool} onBack={() => {
+      setActiveTool(null);
+      fetchCredits();
+    }} />;
   }
 
   return (
     <div className="p-4 pb-24 max-w-xl mx-auto w-full">
-      <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6 px-2">Ani Malar Studio</h2>
-      
-      {['gen', 'edit', 'lipsync'].map(category => (
-        <div key={category} className="mb-6">
-          <h3 className="text-sm font-bold text-pink-500 dark:text-pink-400 uppercase tracking-widest mb-3 px-2">
-            {category === 'gen' ? '🚀 Generate' : category === 'edit' ? '✂️ Fine Tune' : '👄 Audio Sync'}
-          </h3>
-          <div className="grid grid-cols-2 gap-4">
-            {tools.filter(t => t.type === category).map(tool => (
-              <button 
-                key={tool.id} 
-                onClick={() => setActiveTool(tool.id)}
-                className="glass dark:glass-dark p-5 rounded-3xl shadow-sm flex flex-col items-start hover:shadow-lg hover:shadow-pink-100 dark:hover:shadow-none transition-all text-left space-y-3 group"
-              >
-                <div className="bg-pink-50 dark:bg-pink-900/30 p-3 rounded-2xl text-pink-500 dark:text-pink-400 group-hover:bg-pink-500 group-hover:text-white dark:group-hover:text-white transition-colors shadow-sm">
-                  {category === 'gen' ? <PlayCircle size={26} /> : category === 'edit' ? <Sparkles size={26} /> : <ImageIcon size={26} />}
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-900 dark:text-gray-100 leading-tight">{tool.name}</h4>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-2 mt-1 font-medium">{tool.desc}</p>
-                </div>
-              </button>
-            ))}
-          </div>
+      <div className="flex justify-between items-center mb-6 px-2">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Ani Malar Studio</h2>
+        <div className="flex items-center gap-2 bg-pink-100 dark:bg-pink-900/40 px-4 py-2 rounded-2xl border border-pink-200 dark:border-pink-800 animate-in fade-in zoom-in group relative">
+          <button 
+            onClick={(e) => { e.stopPropagation(); fetchCredits(); }} 
+            className="absolute -left-2 -top-2 bg-pink-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity transform hover:rotate-180 duration-500"
+            title="Refresh Credits"
+          >
+            <Sparkles size={10} />
+          </button>
+          <Sparkles size={16} className="text-pink-500" />
+          <span className="text-xs font-bold text-pink-700 dark:text-pink-300">
+            {credits !== null ? `${credits} Credits` : '---'}
+          </span>
         </div>
-      ))}
+      </div>
+      
+      <div className="mb-6">
+        <h3 className="text-sm font-bold text-pink-500 dark:text-pink-400 uppercase tracking-widest mb-3 px-2">
+          ✂️ AI Studio
+        </h3>
+        <div className="grid grid-cols-1 gap-4">
+          {tools.map(tool => (
+            <button 
+              key={tool.id} 
+              onClick={() => setActiveTool(tool.id)}
+              className="glass dark:glass-dark p-5 rounded-3xl shadow-sm flex flex-col items-start hover:shadow-lg hover:shadow-pink-100 dark:hover:shadow-none transition-all text-left space-y-3 group"
+            >
+              <div className="bg-pink-50 dark:bg-pink-900/30 p-3 rounded-2xl text-pink-500 dark:text-pink-400 group-hover:bg-pink-500 group-hover:text-white dark:group-hover:text-white transition-colors shadow-sm">
+                {tool.icon === 'music' ? <Music size={26} /> : <Sparkles size={26} />}
+              </div>
+              <div>
+                <h4 className="font-bold text-gray-900 dark:text-gray-100 leading-tight">{tool.name}</h4>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-2 mt-1 font-medium">{tool.desc}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
 function GenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
-  const { apiKey, apiMode, addTask, showToast } = useAppContext();
+  const { kieApiKey, addTask, showToast } = useAppContext();
   const [prompt, setPrompt] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [imageUrlStr, setImageUrlStr] = useState('');
-  const [videoBase64, setVideoBase64] = useState<string>('');
   const [videoUrlStr, setVideoUrlStr] = useState('');
-  const [audioBase64, setAudioBase64] = useState<string>('');
   const [audioUrlStr, setAudioUrlStr] = useState('');
   const [loading, setLoading] = useState(false);
-  const [improving, setImproving] = useState(false);
   
   const [params, setParams] = useState<Record<string, any>>(() => {
     const initial: Record<string, any> = {};
@@ -326,58 +334,13 @@ function GenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
     return initial;
   });
 
-  const handleImprovePrompt = async () => {
-    if (!prompt) return;
-    setImproving(true);
-    try {
-      const res = await magnificApi('/v1/ai/improve-prompt', apiKey, { prompt, type: 'video' }, 'POST', apiMode);
-      if (res.data?.task_id) {
-        let pending = true;
-        let attempts = 0;
-        let taskId = res.data.task_id;
-        while(pending && attempts < 20) {
-           await new Promise(r => setTimeout(r, 2000));
-           const statusRes = await magnificApi(`/v1/ai/improve-prompt/${taskId}`, apiKey, undefined, 'GET', apiMode);
-           if (statusRes.data?.status === 'COMPLETED') {
-             if (statusRes.data.generated?.length) {
-               setPrompt(statusRes.data.generated[0]);
-             }
-             pending = false;
-           } else if (statusRes.data?.status === 'FAILED') {
-             showToast('Gagal meningkatkan prompt', 'error');
-             pending = false;
-           }
-           attempts++;
-        }
-      }
-    } catch (e: any) {
-      showToast(e.message || "Gagal meningkatkan prompt", 'error');
-    } finally {
-      setImproving(false);
-    }
-  };
-
   const [isUploading, setIsUploading] = useState(false);
-
-  const uploadToCloudinary = async (file: File | Blob) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', 'magnify');
-    const res = await fetch('https://api.cloudinary.com/v1_1/dv4ar152y/auto/upload', {
-      method: 'POST',
-      body: formData
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || 'Upload gagal');
-    return data.secure_url;
-  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, targetIndex?: number) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
     setIsUploading(true);
-    const useCloudinary = tool.id.includes('kling');
     showToast(`Sedang memproses gambar...`, "info");
     try {
       const options = {
@@ -388,15 +351,7 @@ function GenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
       
       const newImages = await Promise.all(files.map(async (file: File) => {
         const compressedFile = await imageCompression(file, options);
-        if (useCloudinary) {
-          return await uploadToCloudinary(compressedFile);
-        } else {
-          return new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(compressedFile);
-            reader.onload = () => resolve(reader.result as string);
-          });
-        }
+        return await uploadToCloudinary(compressedFile);
       }));
 
       if (targetIndex !== undefined) {
@@ -408,13 +363,8 @@ function GenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
       } else if (tool.multipleImages) {
         setImages(prev => [...prev, ...newImages].slice(0, tool.maxImages || 9));
       } else {
-        if (useCloudinary) {
-          setImageUrlStr(newImages[0]);
-          setImages([newImages[0]]); // Update both to keep form unified
-        } else {
-          setImages([newImages[0]]);
-          setImageUrlStr('');
-        }
+        setImageUrlStr(newImages[0]);
+        setImages([newImages[0]]);
       }
       showToast("Gambar berhasil diproses", "success");
     } catch (error: any) {
@@ -428,25 +378,12 @@ function GenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
   const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     setIsUploading(true);
-    const useCloudinary = tool.id.includes('kling');
     showToast(`Sedang memproses video...`, "info");
     try {
-      if (useCloudinary) {
-        const url = await uploadToCloudinary(file);
-        setVideoUrlStr(url);
-        setVideoBase64('');
-      } else {
-        await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = () => {
-            setVideoBase64(reader.result as string);
-            setVideoUrlStr('');
-            resolve(true);
-          };
-        });
-      }
+      const url = await uploadToCloudinary(file);
+      setVideoUrlStr(url);
       showToast("Video berhasil diproses", "success");
     } catch (error: any) {
       console.error(error);
@@ -459,25 +396,12 @@ function GenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
   const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     setIsUploading(true);
-    const useCloudinary = tool.id.includes('kling');
     showToast(`Sedang memproses audio...`, "info");
     try {
-      if (useCloudinary) {
-        const url = await uploadToCloudinary(file);
-        setAudioUrlStr(url);
-        setAudioBase64('');
-      } else {
-        await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = () => {
-            setAudioBase64(reader.result as string);
-            setAudioUrlStr('');
-            resolve(true);
-          };
-        });
-      }
+      const url = await uploadToCloudinary(file);
+      setAudioUrlStr(url);
       showToast("Audio berhasil diproses", "success");
     } catch (error: any) {
       console.error(error);
@@ -488,12 +412,31 @@ function GenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
   };
 
   const handleSubmit = async () => {
-    if (!apiKey) {
-      showToast("API Key diperlukan untuk mulai generate. Silahkan atur di menu Access.", "error");
+    if (!kieApiKey) {
+      showToast("Kie AI API Key diperlukan. Silahkan atur di menu Access.", "error");
       return;
     }
 
-    if (!prompt && images.length === 0 && !imageUrlStr && !videoBase64 && !videoUrlStr && !audioBase64 && !audioUrlStr) {
+    const finalImages = imageUrlStr ? [imageUrlStr] : images;
+    const finalVideo = videoUrlStr;
+    const finalAudio = audioUrlStr;
+
+    if (tool.requiresImage && finalImages.length === 0) {
+      showToast("Gagal: Gambar referensi diperlukan.", "error");
+      return;
+    }
+
+    if (tool.requiresVideo && !finalVideo) {
+      showToast("Gagal: Video referensi diperlukan.", "error");
+      return;
+    }
+
+    if (tool.requiresAudio && !finalAudio) {
+      showToast("Gagal: Audio referensi diperlukan.", "error");
+      return;
+    }
+
+    if (!prompt && finalImages.length === 0 && !finalVideo && !finalAudio) {
       showToast("Harap isi input yang diperlukan.", "info");
       return;
     }
@@ -501,12 +444,8 @@ function GenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
     setLoading(true);
     try {
       let payload: any = { ...params };
-      if (!tool.promptOptional || prompt) payload.prompt = prompt;
+      if (prompt && !tool.hidePrompt) payload.prompt = prompt;
       
-      const finalImages = imageUrlStr ? [imageUrlStr] : images;
-      const finalVideo = videoUrlStr || videoBase64;
-      const finalAudio = audioUrlStr || audioBase64;
-
       if (tool.preparePayload) {
         tool.preparePayload(payload, finalImages, finalVideo, finalAudio);
       } else {
@@ -521,21 +460,28 @@ function GenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
         }
 
         if (tool.requiresAudio && finalAudio) {
-          payload[tool.audioField || 'audio_url'] = finalAudio;
+          payload[tool.audioField || 'uploadUrl'] = finalAudio;
         }
       }
 
-      Object.keys(payload).forEach(key => {
-        if (payload[key] === undefined || payload[key] === null || payload[key] === '') {
-          delete payload[key];
-        }
-      });
-
-      const res = await magnificApi(tool.endpoint, apiKey, payload, 'POST', apiMode);
+      // Recursive sanitization for payload and nested objects (input)
+      const sanitize = (obj: any) => {
+        Object.keys(obj).forEach(key => {
+          if (obj[key] === undefined || obj[key] === null || obj[key] === '') {
+            delete obj[key];
+          } else if (typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
+            sanitize(obj[key]);
+          }
+        });
+      };
       
-      const taskId = res.data?.task_id || res.task_id || res.id;
+      sanitize(payload);
+
+      const res = await kieApi(tool.endpoint, kieApiKey, payload, 'POST');
+      const taskId = res.data?.taskId;
+      
       if (taskId) {
-        addTask({ id: taskId, type: tool.name, getEndpoint: tool.endpoint });
+        addTask({ id: taskId, type: tool.name, getEndpoint: tool.endpoint, provider: 'kie' });
         showToast("Task berhasil dibuat! Cek di menu Tasks.", "success");
         onBack();
       } else {
@@ -564,62 +510,31 @@ function GenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
           <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
             Referensi Gambar {tool.multipleImages && `(Maks ${tool.maxImages || 9})`}
           </label>
-          
-          {tool.id === 'grok-imagine-i2v' ? (
-            <div className="grid grid-cols-2 gap-4">
-              {/* First Frame Card */}
-              <div className="glass dark:glass-dark rounded-3xl p-4 text-center hover:bg-white/40 dark:hover:bg-white/5 transition-colors cursor-pointer relative overflow-hidden flex flex-col items-center justify-center min-h-[160px] border-none group">
-                <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, 0)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
-                {images[0] ? (
-                  <img src={images[0]} alt="First Frame" className="w-full h-full object-cover rounded-2xl absolute inset-0" />
-                ) : (
-                  <div className="flex flex-col items-center gap-2 text-pink-400 opacity-60 group-hover:opacity-100 transition-opacity">
-                    <ImageIcon size={24} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">First Frame</span>
+          <div className="glass dark:glass-dark rounded-3xl p-8 text-center hover:bg-white/40 dark:hover:bg-white/5 transition-colors cursor-pointer relative overflow-hidden group">
+            <input type="file" accept="image/*" multiple={tool.multipleImages} onChange={handleImageUpload} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
+            {images.length > 0 ? (
+              <div className="flex flex-wrap gap-3 justify-center">
+                {images.map((img, idx) => (
+                  <div key={idx} className="relative w-20 h-20 group/img">
+                    <img src={img} alt={`Preview ${idx+1}`} className="w-full h-full object-cover rounded-2xl shadow-sm border border-white/50" />
                   </div>
-                )}
+                ))}
               </div>
-              {/* Last Frame Card */}
-              <div className="glass dark:glass-dark rounded-3xl p-4 text-center hover:bg-white/40 dark:hover:bg-white/5 transition-colors cursor-pointer relative overflow-hidden flex flex-col items-center justify-center min-h-[160px] border-none group">
-                <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, 1)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
-                {images[1] ? (
-                  <img src={images[1]} alt="Last Frame" className="w-full h-full object-cover rounded-2xl absolute inset-0" />
-                ) : (
-                  <div className="flex flex-col items-center gap-2 text-pink-400 opacity-60 group-hover:opacity-100 transition-opacity">
-                    <ImageIcon size={24} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Last Frame</span>
-                    <span className="text-[8px] font-bold text-gray-400">(Optional)</span>
-                  </div>
-                )}
+            ) : (
+              <div className="flex flex-col items-center gap-2 text-pink-400/60 dark:text-pink-400/40">
+                <div className="bg-pink-50 dark:bg-pink-900/20 p-4 rounded-2xl">
+                  <ImageIcon size={32} />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-widest mt-1">Upload Gambar</span>
               </div>
-            </div>
-          ) : (
-            <div className="glass dark:glass-dark rounded-3xl p-8 text-center hover:bg-white/40 dark:hover:bg-white/5 transition-colors cursor-pointer relative overflow-hidden group">
-              <input type="file" accept="image/*" multiple={tool.multipleImages} onChange={handleImageUpload} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
-              {images.length > 0 ? (
-                <div className="flex flex-wrap gap-3 justify-center">
-                  {images.map((img, idx) => (
-                    <div key={idx} className="relative w-20 h-20 group/img">
-                      <img src={img} alt={`Preview ${idx+1}`} className="w-full h-full object-cover rounded-2xl shadow-sm border border-white/50" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2 text-pink-400/60 dark:text-pink-400/40">
-                  <div className="bg-pink-50 dark:bg-pink-900/20 p-4 rounded-2xl">
-                    <ImageIcon size={32} />
-                  </div>
-                  <span className="text-xs font-bold uppercase tracking-widest mt-1">Upload Gambar</span>
-                </div>
-              )}
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest my-1">Atau Gunakan Link</div>
           <input 
             type="text" 
             placeholder="https://... (URL Gambar)" 
-            value={imageUrlStr}
+            value={imageUrlStr || ''}
             onChange={(e) => setImageUrlStr(e.target.value)}
             className="w-full px-4 py-3 glass dark:glass-dark rounded-2xl focus:outline-none focus:ring-2 focus:ring-pink-400 text-sm dark:text-white border-none shadow-sm"
           />
@@ -631,12 +546,12 @@ function GenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
           <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Referensi Video</label>
           <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-6 text-center hover:bg-gray-50 dark:hover:bg-gray-800/80 transition cursor-pointer relative overflow-hidden group">
             <input type="file" accept="video/mp4,video/quicktime" onChange={handleVideoUpload} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
-            {videoBase64 ? (
-              <div className="text-sm text-green-600 font-medium">Video siap diunggah</div>
+            {videoUrlStr ? (
+              <div className="text-sm text-green-600 font-medium truncate px-4">{videoUrlStr}</div>
             ) : (
               <div className="flex flex-col items-center gap-2 text-gray-500 dark:text-gray-400">
                 <PlayCircle size={32} />
-                <span className="text-sm font-medium">Ketuk untuk upload video MP4/MOV (Base64)</span>
+                <span className="text-sm font-medium px-4">Ketuk untuk upload video (Kie AI Upload)</span>
               </div>
             )}
           </div>
@@ -644,36 +559,34 @@ function GenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
           <input 
             type="text" 
             placeholder="https://... (URL Video Publik)" 
-            value={videoUrlStr}
+            value={videoUrlStr || ''}
             onChange={(e) => setVideoUrlStr(e.target.value)}
             className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm dark:text-white"
           />
-          {tool.id.includes('kling') && <p className="text-xs text-orange-500 font-medium">Model Kling wajib menggunakan URL Publik.</p>}
         </div>
       )}
 
       {tool.requiresAudio && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Referensi Audio</label>
-          <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-6 text-center hover:bg-gray-50 dark:hover:bg-gray-800/80 transition cursor-pointer relative overflow-hidden group">
-            <input type="file" accept="audio/mp3,audio/wav,audio/x-m4a" onChange={handleAudioUpload} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
-            {audioBase64 ? (
-              <div className="text-sm text-green-600 font-medium">Audio siap diunggah</div>
+          <div className="glass dark:glass-dark rounded-3xl p-8 text-center hover:bg-white/40 dark:hover:bg-white/5 transition-colors cursor-pointer relative overflow-hidden group">
+            <input type="file" accept="audio/*" onChange={handleAudioUpload} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
+            {audioUrlStr ? (
+              <div className="flex flex-col items-center gap-3">
+                <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-2xl text-green-500">
+                  <Music size={32} />
+                </div>
+                <div className="text-xs font-bold text-green-600 dark:text-green-400 truncate w-full px-4">{audioUrlStr}</div>
+              </div>
             ) : (
-              <div className="flex flex-col items-center gap-2 text-gray-500 dark:text-gray-400">
-                <span className="text-3xl">🎵</span>
-                <span className="text-sm font-medium">Ketuk untuk upload audio (Base64)</span>
+              <div className="flex flex-col items-center gap-2 text-pink-400/60 dark:text-pink-400/40">
+                <div className="bg-pink-50 dark:bg-pink-900/20 p-4 rounded-2xl">
+                  <Music size={32} />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-widest mt-1">Upload Audio</span>
               </div>
             )}
           </div>
-          <div className="text-center text-xs text-gray-400 font-medium my-1">ATAU</div>
-          <input 
-            type="text" 
-            placeholder="https://... (URL Audio Publik)" 
-            value={audioUrlStr}
-            onChange={(e) => setAudioUrlStr(e.target.value)}
-            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm dark:text-white"
-          />
         </div>
       )}
 
@@ -733,19 +646,14 @@ function GenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
 
       {!tool.hidePrompt && (
         <div className="space-y-3">
-          <div className="flex justify-between items-end px-1">
-            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Intruksi Kreatif</label>
-            <button onClick={handleImprovePrompt} disabled={improving} className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-900/50 disabled:opacity-50 transition-all uppercase tracking-widest">
-              {improving ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} Improve
-            </button>
-          </div>
-          <textarea 
-            rows={4}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Jelaskan secara detail apa yang Anda inginkan..."
-            className="w-full px-5 py-4 glass dark:glass-dark rounded-3xl focus:outline-none focus:ring-2 focus:ring-pink-400 resize-none dark:text-white text-sm shadow-sm border-none transition-shadow"
-          />
+          <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 px-1">Intruksi Kreatif</label>
+            <textarea 
+              rows={4}
+              value={prompt || ''}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={tool.promptPlaceholder || "Jelaskan secara detail apa yang Anda inginkan..."}
+              className="w-full px-5 py-4 glass dark:glass-dark rounded-3xl focus:outline-none focus:ring-2 focus:ring-pink-400 resize-none dark:text-white text-sm shadow-sm border-none transition-shadow"
+            />
         </div>
       )}
 
@@ -757,391 +665,55 @@ function GenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
   );
 }
 
-interface BatchFormState {
-  prompt: string;
-  images: string[];
-  imageUrlStr: string;
-  videoBase64: string;
-  videoUrlStr: string;
-  audioBase64: string;
-  audioUrlStr: string;
-  params: Record<string, any>;
-}
-
-function BatchGenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
-  const { apiKey, apiMode, addTask, showToast } = useAppContext();
-  
-  const defaultParams = React.useMemo(() => {
-    const initial: Record<string, any> = {};
-    if (tool.params) {
-      tool.params.forEach((p: any) => {
-        initial[p.name] = p.default;
-      });
-    }
-    return initial;
-  }, [tool.params]);
-
-  const [batches, setBatches] = useState<BatchFormState[]>(() => {
-    return Array.from({ length: 4 }).map(() => ({
-      prompt: '',
-      images: [],
-      imageUrlStr: '',
-      videoBase64: '',
-      videoUrlStr: '',
-      audioBase64: '',
-      audioUrlStr: '',
-      params: { ...defaultParams }
-    }));
-  });
-  
-  const [activeBatchIndex, setActiveBatchIndex] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [improving, setImproving] = useState(false);
-
-  const currentBatch = batches[activeBatchIndex];
-  
-  const updateCurrentBatch = (updates: Partial<BatchFormState>) => {
-    setBatches(prev => {
-      const next = [...prev];
-      next[activeBatchIndex] = { ...next[activeBatchIndex], ...updates };
-      return next;
-    });
-  };
-
-  const uploadToCloudinary = async (file: File | Blob) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', 'magnify');
-    const res = await fetch('https://api.cloudinary.com/v1_1/dv4ar152y/auto/upload', {
-      method: 'POST',
-      body: formData
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || 'Upload gagal');
-    return data.secure_url;
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-
-    setIsUploading(true);
-    const useCloudinary = tool.id.includes('kling');
-    showToast(`Sedang memproses gambar...`, "info");
-    try {
-      const options = {
-        maxSizeMB: 1,
-        maxWidthOrHeight: 1024,
-        useWebWorker: true
-      };
-      
-      const newImages = await Promise.all(files.map(async (file: File) => {
-        const compressedFile = await imageCompression(file, options);
-        if (useCloudinary) {
-          return await uploadToCloudinary(compressedFile);
-        } else {
-          return new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(compressedFile);
-            reader.onload = () => resolve(reader.result as string);
-          });
-        }
-      }));
-
-      if (tool.multipleImages) {
-        updateCurrentBatch({ images: [...currentBatch.images, ...newImages].slice(0, tool.maxImages || 9) });
-      } else {
-        if (useCloudinary) {
-          updateCurrentBatch({ imageUrlStr: newImages[0], images: [newImages[0]] });
-        } else {
-          updateCurrentBatch({ images: [newImages[0]], imageUrlStr: '' });
-        }
-      }
-      showToast("Gambar berhasil diproses", "success");
-    } catch (error: any) {
-      console.error(error);
-      showToast(error.message || "Gagal memproses gambar", "error");
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleImprovePrompt = async () => {
-    if (!currentBatch.prompt) return;
-    setImproving(true);
-    try {
-      const res = await magnificApi('/v1/ai/improve-prompt', apiKey, { prompt: currentBatch.prompt, type: 'video' }, 'POST', apiMode);
-      if (res.data?.task_id) {
-        let pending = true;
-        let attempts = 0;
-        let taskId = res.data.task_id;
-        while(pending && attempts < 20) {
-           await new Promise(r => setTimeout(r, 2000));
-           const statusRes = await magnificApi(`/v1/ai/improve-prompt/${taskId}`, apiKey, undefined, 'GET', apiMode);
-           if (statusRes.data?.status === 'COMPLETED') {
-             if (statusRes.data.generated?.length) {
-               updateCurrentBatch({ prompt: statusRes.data.generated[0] });
-             }
-             pending = false;
-           } else if (statusRes.data?.status === 'FAILED') {
-             showToast('Gagal meningkatkan prompt', 'error');
-             pending = false;
-           }
-           attempts++;
-        }
-      }
-    } catch (e: any) {
-      showToast(e.message || "Gagal meningkatkan prompt", 'error');
-    } finally {
-      setImproving(false);
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!apiKey) {
-      showToast("API Key diperlukan untuk mulai generate. Silahkan atur di menu Access.", "error");
-      return;
-    }
-
-    const activeBatchesToSubmit = batches.filter(batch => {
-      // Validate if we have entered minimum info, e.g. prompt or image
-      return batch.prompt || batch.images.length > 0 || batch.imageUrlStr;
-    });
-
-    if (activeBatchesToSubmit.length === 0) {
-      showToast("Harap isi minimal 1 batch yang diperlukan.", "info");
-      return;
-    }
-
-    setLoading(true);
-    let successCount = 0;
-    
-    // We send sequence of requests
-    for (const batch of activeBatchesToSubmit) {
-      try {
-        let payload: any = { ...batch.params };
-        if (!tool.promptOptional || batch.prompt) payload.prompt = batch.prompt;
-        
-        const finalImages = batch.imageUrlStr ? [batch.imageUrlStr] : batch.images;
-
-        if (tool.preparePayload) {
-          tool.preparePayload(payload, finalImages, '', '');
-        } else {
-          if (tool.multipleImages && finalImages.length > 0) {
-            payload[tool.payloadField || 'image_urls'] = finalImages;
-          } else if (tool.requiresImage && finalImages.length > 0) {
-            payload[tool.imageField || tool.payloadField || 'image_url'] = finalImages[0];
-          }
-        }
-
-        Object.keys(payload).forEach(key => {
-          if (payload[key] === undefined || payload[key] === null || payload[key] === '') {
-            delete payload[key];
-          }
-        });
-
-        const res = await magnificApi(tool.endpoint, apiKey, payload, 'POST', apiMode);
-        const taskId = res.data?.task_id || res.task_id || res.id;
-        if (taskId) {
-          addTask({ id: taskId, type: tool.name, getEndpoint: tool.endpoint });
-          successCount++;
-        }
-      } catch (e: any) {
-        showToast(e.message || "Gagal menghubungi server untuk satu task", "error");
-      }
-    }
-    
-    setLoading(false);
-    if (successCount > 0) {
-      showToast(`${successCount} Task berhasil dibuat! Cek di menu Tasks.`, "success");
-      onBack();
-    }
-  };
-
-  return (
-    <div className="p-4 pb-24 max-w-xl mx-auto space-y-6">
-      <button onClick={onBack} className="text-pink-500 dark:text-pink-400 hover:text-pink-600 dark:hover:text-pink-300 text-sm font-bold flex items-center gap-1 transition-colors">
-        &larr; Beranda
-      </button>
-
-      <div>
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">{tool.name}</h2>
-        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">{tool.desc}</p>
-      </div>
-
-      <div className="flex gap-2 mb-4 p-1 glass dark:glass-dark rounded-2xl overflow-x-auto pb-2 scrollbar-hide">
-        {batches.map((b, idx) => {
-          const hasContent = b.prompt || b.images.length > 0 || b.imageUrlStr;
-          return (
-            <button
-              key={idx}
-              onClick={() => setActiveBatchIndex(idx)}
-              className={cn(
-                "px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all flex items-center gap-2",
-                activeBatchIndex === idx
-                  ? "bg-pink-500 text-white shadow-md shadow-pink-100 dark:shadow-none"
-                  : "text-gray-400 hover:text-pink-400 dark:hover:text-pink-300"
-              )}
-            >
-              Batch {idx + 1}
-              {hasContent && <span className="w-1.5 h-1.5 rounded-full bg-pink-300 shadow-[0_0_8px_rgba(255,100,100,0.8)]"></span>}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="space-y-6 glass dark:glass-dark p-6 rounded-3xl shadow-sm">
-        <h3 className="font-bold text-lg text-gray-800 dark:text-gray-100 mb-2 flex items-center gap-2">
-           <ImageIcon size={20} className="text-pink-500" /> Editor Batch {activeBatchIndex + 1}
-        </h3>
-        
-        <div className="space-y-3">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-            Referensi Gambar {tool.multipleImages && `(Maks ${tool.maxImages || 9})`}
-          </label>
-          <div className="glass dark:glass-dark rounded-3xl p-8 text-center hover:bg-white/40 dark:hover:bg-white/5 transition-colors cursor-pointer relative overflow-hidden group">
-            <input type="file" accept="image/*" multiple={tool.multipleImages} onChange={handleImageUpload} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
-            {currentBatch.images.length > 0 ? (
-              <div className="flex flex-wrap gap-2 justify-center">
-                {currentBatch.images.map((img, idx) => (
-                  <img key={idx} src={img} alt={`Preview ${idx+1}`} className="w-20 h-20 object-cover rounded-2xl border border-white/50 shadow-sm" />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2 text-pink-300 dark:text-pink-400/40">
-                <ImageIcon size={32} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Klik Upload</span>
-              </div>
-            )}
-          </div>
-          <div className="text-center text-[10px] text-gray-400 font-black uppercase tracking-widest">Or URL</div>
-          <input 
-            type="text" 
-            placeholder="https://... (URL Gambar)" 
-            value={currentBatch.imageUrlStr}
-            onChange={(e) => updateCurrentBatch({ imageUrlStr: e.target.value })}
-            className="w-full px-4 py-3 glass dark:glass-dark rounded-2xl focus:outline-none focus:ring-2 focus:ring-pink-400 text-sm dark:text-white border-none"
-          />
-        </div>
-
-        {tool.params && tool.params.length > 0 && (
-          <div className="space-y-4 pt-6 border-t border-white/20 dark:border-white/5">
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Config Batch {activeBatchIndex + 1}</h3>
-            <div className="grid grid-cols-1 gap-4">
-              {tool.params.map((p: any) => (
-                <div key={p.name} className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">{p.label}</label>
-                  {p.type === 'select' ? (
-                    <select 
-                      value={currentBatch.params[p.name] ?? ''}
-                      onChange={e => updateCurrentBatch({ params: { ...currentBatch.params, [p.name]: e.target.value } })}
-                      className="px-4 py-2 bg-white/50 dark:bg-black/20 border border-pink-100 dark:border-pink-900/30 rounded-xl text-sm dark:text-white focus:outline-none focus:ring-2 focus:ring-pink-400"
-                    >
-                      {p.options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  ) : p.type === 'boolean' ? (
-                    <button 
-                      onClick={() => updateCurrentBatch({ params: { ...currentBatch.params, [p.name]: !currentBatch.params[p.name] } })}
-                      className={cn(
-                        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                        currentBatch.params[p.name] ? "bg-pink-500" : "bg-gray-300 dark:bg-gray-700"
-                      )}
-                    >
-                      <span className={cn(
-                        "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                        currentBatch.params[p.name] ? "translate-x-6" : "translate-x-1"
-                      )} />
-                    </button>
-                  ) : p.type === 'text' ? (
-                    <input 
-                      type="text"
-                      value={currentBatch.params[p.name] ?? ''}
-                      onChange={e => updateCurrentBatch({ params: { ...currentBatch.params, [p.name]: e.target.value } })}
-                      placeholder={p.optional ? "Opsional" : ""}
-                      className="px-4 py-2 bg-white/50 dark:bg-black/20 border border-pink-100 dark:border-pink-900/30 rounded-xl text-sm dark:text-white focus:outline-none focus:ring-2 focus:ring-pink-400"
-                    />
-                  ) : p.type === 'number' ? (
-                    <input 
-                      type="number"
-                      min={p.min} max={p.max} step={p.step}
-                      value={currentBatch.params[p.name] ?? ''}
-                      onChange={e => updateCurrentBatch({ params: { ...currentBatch.params, [p.name]: e.target.value !== '' ? Number(e.target.value) : undefined } })}
-                      placeholder={p.optional ? "Opsional" : ""}
-                      className="px-4 py-2 bg-white/50 dark:bg-black/20 border border-pink-100 dark:border-pink-900/30 rounded-xl text-sm dark:text-white focus:outline-none focus:ring-2 focus:ring-pink-400"
-                    />
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {!tool.hidePrompt && (
-          <div className="space-y-3 pt-6 border-t border-white/20 dark:border-white/5">
-            <div className="flex justify-between items-end px-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Intruksi Batch</label>
-              <button onClick={handleImprovePrompt} disabled={improving} className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1.5 rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-900/50 disabled:opacity-50 transition-all uppercase tracking-widest">
-                {improving ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} Improve
-              </button>
-            </div>
-            <textarea 
-              rows={3}
-              value={currentBatch.prompt}
-              onChange={(e) => updateCurrentBatch({ prompt: e.target.value })}
-              placeholder="Detail instruksi..."
-              className="w-full px-4 py-3 glass dark:glass-dark rounded-2xl focus:outline-none focus:ring-2 focus:ring-pink-400 resize-none dark:text-white text-sm border-none shadow-sm"
-            />
-          </div>
-        )}
-      </div>
-
-      <button disabled={loading || isUploading} onClick={handleSubmit} className="w-full bg-pink-500 text-white font-black py-5 rounded-3xl hover:bg-pink-600 transition-all flex justify-center items-center gap-2 shadow-xl shadow-pink-200 dark:shadow-none uppercase tracking-widest">
-        {loading ? <Loader2 className="animate-spin" /> : <PlayCircle />}
-        Generate All Batches
-      </button>
-    </div>
-  );
-}
-
 function TaskView() {
-  const { tasks, updateTaskStatus, apiKey, apiMode, clearTasks } = useAppContext();
+  const { tasks, updateTaskStatus, kieApiKey, clearTasks } = useAppContext();
 
-  // Exponential Backoff Polling
   React.useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     let isActive = true;
     
-    // Check pending tasks
     const checkTasks = async () => {
       const pendingTasks = tasks.filter(t => t.status === 'pending');
       if (pendingTasks.length === 0) return;
 
       for (const task of pendingTasks) {
         try {
-          if (!task.getEndpoint) {
-            updateTaskStatus(task.id, 'failed');
-            continue;
-          }
+          if (task.provider === 'kie') {
+            const isSuno = task.getEndpoint.includes('generate');
+            const getUrl = isSuno 
+              ? `/api/v1/generate/record-info?taskId=${task.id}`
+              : `/api/v1/jobs/recordInfo?taskId=${task.id}`;
+            
+            const res = await kieApi(getUrl, kieApiKey, undefined, 'GET').catch(e => {
+              console.error(`Kie Task poll error for ${task.id}:`, e.message);
+              return null;
+            });
 
-          const getUrl = `${task.getEndpoint}/${task.id}`;
-          const res = await magnificApi(getUrl, apiKey, undefined, 'GET', apiMode).catch(e => {
-            console.error(`Task poll error for ${task.id}:`, e.message);
-            if (e.message && (e.message.toLowerCase().includes('not found') || e.message.includes('404'))) {
-              updateTaskStatus(task.id, 'failed');
+            if (!res || !res.data) continue;
+
+            if (isSuno) {
+              const status = res.data.status;
+              const sunoData = res.data.response?.sunoData || [];
+              if (status === 'SUCCESS' || (status === 'FIRST_SUCCESS' && sunoData.length > 0)) {
+                updateTaskStatus(task.id, 'completed', sunoData[0]?.audioUrl, undefined, sunoData);
+              } else if (['CREATE_TASK_FAILED', 'GENERATE_AUDIO_FAILED', 'SENSITIVE_WORD_ERROR'].includes(status)) {
+                updateTaskStatus(task.id, 'failed', undefined, res.data.errorMessage || status);
+              }
+            } else {
+              const state = res.data.state;
+              if (state === 'success') {
+                let resultUrl = '';
+                try {
+                  const resultObj = JSON.parse(res.data.resultJson);
+                  resultUrl = resultObj.resultUrls?.[0] || '';
+                } catch (e) {
+                  console.error("Failed to parse resultJson from Kie", e);
+                }
+                updateTaskStatus(task.id, 'completed', resultUrl);
+              } else if (state === 'fail') {
+                updateTaskStatus(task.id, 'failed', undefined, res.data.failMsg || 'Generation failed');
+              }
             }
-            return null;
-          });
-          
-          if (!res) continue; // Request failed, skip and try again later
-          
-          const status = res.data?.status || res.status;
-          
-          if (status === 'COMPLETED' || status === 'completed' || status === 'success') {
-            const resultUrl = res.data?.generated?.[0] || res.data?.url || res.data?.video_url || res.generated?.[0] || res.url || res.video_url || res.data?.video_path;
-            updateTaskStatus(task.id, 'completed', resultUrl);
-          } else if (status === 'FAILED' || status === 'failed' || res.error) {
-            updateTaskStatus(task.id, 'failed');
           }
         } catch (e) {
           console.error(`Task check failed for ${task.id}`, e);
@@ -1159,7 +731,7 @@ function TaskView() {
       isActive = false;
       clearTimeout(timeoutId);
     };
-  }, [tasks, apiKey, updateTaskStatus]);
+  }, [tasks, kieApiKey, updateTaskStatus]);
 
   if (tasks.length === 0) {
     return (
@@ -1210,7 +782,42 @@ function TaskView() {
               </div>
             )}
 
-            {t.status === 'completed' && t.resultUrl && (
+            {t.status === 'failed' && t.error && (
+              <div className="bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 p-3 rounded-2xl text-[10px] text-red-700 dark:text-red-300 font-medium">
+                <p className="font-bold mb-1 uppercase tracking-wider opacity-60">Error Details:</p>
+                {t.error}
+              </div>
+            )}
+
+            {t.status === 'completed' && t.batchResults && t.batchResults.length > 0 ? (
+              <div className="space-y-4 pt-2">
+                {t.batchResults.map((item, idx) => (
+                  <div key={idx} className="bg-white/50 dark:bg-black/20 p-4 rounded-3xl border border-pink-50 dark:border-pink-900/30 flex flex-col sm:flex-row gap-4">
+                    <div className="relative w-full sm:w-24 h-24 shrink-0 overflow-hidden rounded-2xl shadow-sm border border-white/40">
+                      <img src={item.imageUrl} alt={item.title || 'Cover'} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent flex items-end p-2">
+                        <Disc className="text-white/80 animate-[spin_4s_linear_infinite]" size={14} />
+                      </div>
+                    </div>
+                    <div className="flex-1 space-y-3">
+                      <div className="space-y-0.5">
+                        <h4 className="font-bold text-gray-900 dark:text-gray-100 text-sm leading-tight line-clamp-1">{item.title || 'Suno Generation'}</h4>
+                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">{item.tags || 'Music'}</p>
+                      </div>
+                      <audio controls src={item.audioUrl} className="w-full h-8 brightness-110 contrast-125 dark:invert" />
+                      <div className="flex gap-2">
+                        <a href={item.audioUrl} target="_blank" rel="noreferrer" className="flex-1 bg-pink-500 hover:bg-pink-600 text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all">
+                          <Download size={12} /> MP3
+                        </a>
+                        <a href={item.imageUrl} target="_blank" rel="noreferrer" className="bg-white dark:bg-gray-800 text-pink-500 border border-pink-100 dark:border-pink-900/40 p-2 rounded-xl hover:bg-pink-50 transition-all">
+                          <ExternalLink size={12} />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : t.status === 'completed' && t.resultUrl && (
               <a href={t.resultUrl} target="_blank" rel="noreferrer" className="mt-2 text-center text-xs bg-pink-500 text-white font-bold py-3 rounded-2xl hover:bg-pink-600 transition-all shadow-lg shadow-pink-100 dark:shadow-none uppercase tracking-widest">
                 Unduh Hasil
               </a>
