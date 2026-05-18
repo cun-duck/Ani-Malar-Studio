@@ -1,15 +1,22 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
+import cors from 'cors';
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
-  // Middleware to parse JSON
-  // Increased limit for potential base64 images, though client-side upload should be used mostly
+  // Middleware
+  app.use(cors()); // Izinkan CORS agar request dari frontend lancar
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+  // Request logging
+  app.use((req, res, next) => {
+    console.log(`${req.method} ${req.url}`);
+    next();
+  });
 
   // BFF Proxy for Magnific AI
   app.all('/api/magnific/*', async (req, res) => {
@@ -19,8 +26,12 @@ async function startServer() {
       return res.status(401).json({ error: "API Key diperlukan di dashboard" });
     }
 
-    const endpointPath = req.url.replace('/api/magnific', '');
-    const targetUrl = `https://api.magnific.com${endpointPath}`;
+    // Ambil path setelah /api/magnific
+    const endpointPath = req.path.replace('/api/magnific', '');
+    const queryParams = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
+    const targetUrl = `https://api.magnific.com${endpointPath}${queryParams}`;
+
+    console.log(`Proxying request to: ${targetUrl}`);
 
     try {
       const magnificResponse = await fetch(targetUrl, {
@@ -35,12 +46,13 @@ async function startServer() {
       const data = await magnificResponse.json().catch(() => null);
       
       if (!magnificResponse.ok) {
+        console.error("Magnific API Error:", data);
         return res.status(magnificResponse.status).json(data || { error: "Terjadi kesalahan pada Magnific API" });
       }
 
       return res.status(magnificResponse.status).json(data || {});
     } catch (error) {
-      console.error("Proxy Error:", error);
+      console.error("Proxy Network Error:", error);
       return res.status(500).json({ error: "Koneksi ke server Magnific gagal" });
     }
   });
@@ -60,8 +72,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  app.listen(Number(PORT), '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
   });
 }
 
