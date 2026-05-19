@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppProvider, useAppContext } from './context/AppContext';
-import { Home, Sparkles, ListVideo, Settings, Key, AlertCircle, PlayCircle, Loader2, Image as ImageIcon, Music, Disc, Download, ExternalLink } from 'lucide-react';
+import { Home, Sparkles, ListVideo, Settings, Key, AlertCircle, PlayCircle, Loader2, Image as ImageIcon } from 'lucide-react';
 import { cn } from './lib/utils';
 import imageCompression from 'browser-image-compression';
 
@@ -152,7 +152,33 @@ function CreateView() {
 
   // Tools Configuration
   const tools = [
-    { id: 'kling-v3-hybrid', name: 'Kling 3.0 Motion Control Hybrid', desc: 'Sintesis ekspresi & postur (Hybrid)', endpoint: '/api/v1/jobs/createTask', type: 'edit', provider: 'kie', requiresImage: true, requiresVideo: true, promptOptional: true, hidePrompt: true,
+    { id: 'happyhorse-ref2video', name: 'HappyHorse Ref-to-Video', desc: 'Video sinematik dengan kontrol multi-karakter dan objek (Up to 9 images).', endpoint: '/api/v1/jobs/createTask', type: 'edit', provider: 'kie', requiresImage: true, multipleImages: true, maxImages: 9, 
+      preparePayload: (payload: any, images: string[]) => {
+        payload.model = 'happyhorse/reference-to-video';
+        payload.callBackUrl = 'playground';
+        payload.input = {
+          prompt: payload.prompt || '',
+          reference_image: images.filter(url => !!url),
+          resolution: payload.resolution || '1080p',
+          aspect_ratio: payload.aspect_ratio || '16:9',
+          duration: payload.duration || 5,
+          seed: payload.seed || 0
+        };
+        // Clean up root level params
+        delete payload.prompt;
+        delete payload.resolution;
+        delete payload.aspect_ratio;
+        delete payload.duration;
+        delete payload.seed;
+      },
+      params: [
+        { name: 'resolution', label: 'Resolution', type: 'select', options: ['720p', '1080p'], default: '1080p' },
+        { name: 'aspect_ratio', label: 'Aspect Ratio', type: 'select', options: ['16:9', '9:16', '1:1', '4:3', '3:4'], default: '16:9' },
+        { name: 'duration', label: 'Duration (3-15s)', type: 'number', min: 3, max: 15, step: 1, default: 5 },
+        { name: 'seed', label: 'Seed', type: 'number', min: 0, max: 2147483647, default: 0 }
+      ]
+    },
+    { id: 'kling-v3-hybrid', name: 'Kling 3.0 Motion Control Hybrid', desc: 'Sintesis ekspresi & postur (Hybrid)', endpoint: '/api/v1/jobs/createTask', type: 'edit', provider: 'kie', requiresImage: true, requiresVideo: true, promptOptional: true, hidePrompt: true, isHighTraffic: true,
       preparePayload: (payload: any, images: string[], videoUrl: string) => {
         const resolution = payload.resolution || '480p';
         payload.model = 'wan/2-2-animate-move';
@@ -171,7 +197,33 @@ function CreateView() {
         { name: 'resolution', label: 'Resolution', type: 'select', options: ['480p', '580p', '720p'], default: '480p' }
       ]
     },
-    { id: 'kling-v2-6', name: 'Kling 2.6 Motion Control', desc: 'Gerak ekspresif dengan detail tinggi (Replace).', endpoint: '/api/v1/jobs/createTask', type: 'edit', provider: 'kie', requiresImage: true, requiresVideo: true, promptOptional: true, hidePrompt: true,
+    { id: 'grok-imagine-ultra', name: 'Grok Imagine Ultra', desc: 'Sintesis video ultra-realistik dengan emosi mendalam & musik latar otomatis.', endpoint: '/api/v1/jobs/createTask', type: 'edit', provider: 'kie', requiresImage: true, multipleImages: true, maxImages: 2, isHighTraffic: true, promptPlaceholder: 'Deskripsikan adegan sinematik yang Anda bayangkan...',
+      preparePayload: (payload: any, images: string[]) => {
+        payload.model = 'bytedance/seedance-1.5-pro';
+        payload.callBackUrl = 'playground';
+        payload.input = {
+          prompt: payload.prompt || '',
+          input_urls: images.filter(url => !!url),
+          aspect_ratio: payload.aspect_ratio || '16:9',
+          resolution: payload.resolution || '720p',
+          duration: String(payload.duration || '8'),
+          fixed_lens: false,
+          generate_audio: true,
+          nsfw_checker: false
+        };
+        // Clean up root level params
+        delete payload.prompt;
+        delete payload.aspect_ratio;
+        delete payload.resolution;
+        delete payload.duration;
+      },
+      params: [
+        { name: 'aspect_ratio', label: 'Aspect Ratio', type: 'select', options: ['1:1', '4:3', '3:4', '16:9', '9:16', '21:9'], default: '16:9' },
+        { name: 'resolution', label: 'Resolution', type: 'select', options: ['480p', '720p', '1080p'], default: '720p' },
+        { name: 'duration', label: 'Duration', type: 'select', options: ['4', '8', '12'], default: '8' }
+      ]
+    },
+    { id: 'kling-v2-6', name: 'Kling 2.6 Motion Control', desc: 'Gerak ekspresif dengan detail tinggi (Replace).', endpoint: '/api/v1/jobs/createTask', type: 'edit', provider: 'kie', requiresImage: true, requiresVideo: true, promptOptional: true, hidePrompt: true, isHighTraffic: true,
       preparePayload: (payload: any, images: string[], videoUrl: string) => {
         const resolution = payload.resolution || '480p';
         payload.model = 'wan/2-2-animate-replace';
@@ -190,7 +242,7 @@ function CreateView() {
         { name: 'resolution', label: 'Resolution', type: 'select', options: ['480p', '580p', '720p'], default: '480p' }
       ]
     },
-    { id: 'grok-imagine-i2v', name: 'Grok Imagine Image to Video', desc: 'Kontrol gerak sinematik dari referensi gambar (Up to 7 images).', endpoint: '/api/v1/jobs/createTask', type: 'edit', provider: 'kie', requiresImage: true, multipleImages: true, maxImages: 7,
+    { id: 'grok-imagine-i2v', name: 'Grok Imagine Image to Video', desc: 'Kontrol gerak sinematik dari referensi gambar (Up to 7 images).', endpoint: '/api/v1/jobs/createTask', type: 'edit', provider: 'kie', requiresImage: true, multipleImages: true, maxImages: 7, isHighTraffic: true,
       preparePayload: (payload: any, images: string[]) => {
         payload.model = 'grok-imagine/image-to-video';
         payload.callBackUrl = 'playground';
@@ -215,49 +267,6 @@ function CreateView() {
         { name: 'duration', label: 'Duration (6-30s)', type: 'number', min: 6, max: 30, step: 1, default: 6 },
         { name: 'resolution', label: 'Resolution', type: 'select', options: ['480p', '720p'], default: '480p' },
         { name: 'aspect_ratio', label: 'Aspect Ratio', type: 'select', options: ['16:9', '9:16', '1:1', '3:2', '2:3'], default: '16:9' }
-      ]
-    },
-    { id: 'suno-v5-5', name: 'Suno Music Generator', desc: 'Hasilkan musik lengkap dengan vokal dan cover art (Suno AI).', endpoint: '/api/v1/generate', type: 'audio', provider: 'kie', requiresPrompt: true, icon: 'music', promptPlaceholder: 'Tuliskan deskripsi musik atau lirik lagu (Lyrics)...',
-      preparePayload: (payload: any) => {
-        payload.customMode = payload.customMode === 'true' || payload.customMode === true;
-        payload.instrumental = payload.instrumental === 'true' || payload.instrumental === true;
-        payload.callBackUrl = 'playground';
-        
-        if (!payload.customMode) {
-          delete payload.style;
-          delete payload.title;
-          delete payload.vocalGender;
-        }
-      },
-      params: [
-        { name: 'model', label: 'Model Version', type: 'select', options: ['V5_5', 'V5', 'V4_5PLUS', 'V4_5', 'V4_5ALL', 'V4'], default: 'V5_5' },
-        { name: 'customMode', label: 'Mode Kustom', type: 'select', options: ['false', 'true'], default: 'false' },
-        { name: 'instrumental', label: 'Instrumental', type: 'select', options: ['false', 'true'], default: 'false' },
-        { name: 'vocalGender', label: 'Vocal Gender (Custom)', type: 'select', options: ['m', 'f'], default: 'm', optional: true },
-        { name: 'style', label: 'Gaya Musik (Custom)', type: 'text', placeholder: 'e.g. Acoustic Pop, Cyberpunk' },
-        { name: 'title', label: 'Judul Lagu (Custom)', type: 'text', placeholder: 'Judul Lagu' },
-        { name: 'negativeTags', label: 'Negative Tags', type: 'text', placeholder: 'e.g. Heavy Metal, Fast' }
-      ]
-    },
-    { id: 'suno-upload-cover', name: 'Suno Audio Transformation', desc: 'Ubah gaya audio yang diupload menjadi musik baru (Cover).', endpoint: '/api/v1/generate/upload-cover', type: 'audio', provider: 'kie', requiresPrompt: true, requiresAudio: true, audioField: 'uploadUrl', icon: 'music', promptPlaceholder: 'Tuliskan deskripsi gaya musik baru (Style)...',
-      preparePayload: (payload: any) => {
-        payload.customMode = payload.customMode === 'true' || payload.customMode === true;
-        payload.instrumental = payload.instrumental === 'true' || payload.instrumental === true;
-        payload.callBackUrl = 'playground';
-        
-        if (!payload.customMode) {
-          delete payload.style;
-          delete payload.title;
-          delete payload.vocalGender;
-        }
-      },
-      params: [
-        { name: 'model', label: 'Model Version', type: 'select', options: ['V5_5', 'V5', 'V4_5PLUS', 'V4_5', 'V4_5ALL', 'V4'], default: 'V5_5' },
-        { name: 'customMode', label: 'Mode Kustom', type: 'select', options: ['false', 'true'], default: 'false' },
-        { name: 'instrumental', label: 'Instrumental', type: 'select', options: ['false', 'true'], default: 'false' },
-        { name: 'vocalGender', label: 'Vocal Gender (Custom)', type: 'select', options: ['m', 'f'], default: 'm', optional: true },
-        { name: 'style', label: 'Gaya Musik (Custom)', type: 'text', placeholder: 'e.g. Acoustic Pop, Cyberpunk' },
-        { name: 'title', label: 'Judul Lagu (Custom)', type: 'text', placeholder: 'Judul Lagu' }
       ]
     }
   ];
@@ -298,10 +307,15 @@ function CreateView() {
             <button 
               key={tool.id} 
               onClick={() => setActiveTool(tool.id)}
-              className="glass dark:glass-dark p-5 rounded-3xl shadow-sm flex flex-col items-start hover:shadow-lg hover:shadow-pink-100 dark:hover:shadow-none transition-all text-left space-y-3 group"
+              className="glass dark:glass-dark p-5 rounded-3xl shadow-sm flex flex-col items-start hover:shadow-lg hover:shadow-pink-100 dark:hover:shadow-none transition-all text-left space-y-3 group relative overflow-hidden"
             >
+              {tool.isHighTraffic && (
+                <div className="absolute top-3 right-3 bg-red-500 text-[8px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded-md text-white shadow-sm z-10 animate-pulse">
+                  High Traffic
+                </div>
+              )}
               <div className="bg-pink-50 dark:bg-pink-900/30 p-3 rounded-2xl text-pink-500 dark:text-pink-400 group-hover:bg-pink-500 group-hover:text-white dark:group-hover:text-white transition-colors shadow-sm">
-                {tool.icon === 'music' ? <Music size={26} /> : <Sparkles size={26} />}
+                <Sparkles size={26} />
               </div>
               <div>
                 <h4 className="font-bold text-gray-900 dark:text-gray-100 leading-tight">{tool.name}</h4>
@@ -566,30 +580,6 @@ function GenerateForm({ tool, onBack }: { tool: any, onBack: () => void }) {
         </div>
       )}
 
-      {tool.requiresAudio && (
-        <div className="space-y-3">
-          <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Referensi Audio</label>
-          <div className="glass dark:glass-dark rounded-3xl p-8 text-center hover:bg-white/40 dark:hover:bg-white/5 transition-colors cursor-pointer relative overflow-hidden group">
-            <input type="file" accept="audio/*" onChange={handleAudioUpload} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
-            {audioUrlStr ? (
-              <div className="flex flex-col items-center gap-3">
-                <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-2xl text-green-500">
-                  <Music size={32} />
-                </div>
-                <div className="text-xs font-bold text-green-600 dark:text-green-400 truncate w-full px-4">{audioUrlStr}</div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2 text-pink-400/60 dark:text-pink-400/40">
-                <div className="bg-pink-50 dark:bg-pink-900/20 p-4 rounded-2xl">
-                  <Music size={32} />
-                </div>
-                <span className="text-xs font-bold uppercase tracking-widest mt-1">Upload Audio</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {tool.params && tool.params.length > 0 && (
         <div className="space-y-4 glass dark:glass-dark p-6 rounded-3xl shadow-sm">
           <h3 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
@@ -678,28 +668,16 @@ function TaskView() {
 
       for (const task of pendingTasks) {
         try {
-          if (task.provider === 'kie') {
-            const isSuno = task.getEndpoint.includes('generate');
-            const getUrl = isSuno 
-              ? `/api/v1/generate/record-info?taskId=${task.id}`
-              : `/api/v1/jobs/recordInfo?taskId=${task.id}`;
-            
-            const res = await kieApi(getUrl, kieApiKey, undefined, 'GET').catch(e => {
-              console.error(`Kie Task poll error for ${task.id}:`, e.message);
-              return null;
-            });
+            if (task.provider === 'kie') {
+              const getUrl = `/api/v1/jobs/recordInfo?taskId=${task.id}`;
+              
+              const res = await kieApi(getUrl, kieApiKey, undefined, 'GET').catch(e => {
+                console.error(`Kie Task poll error for ${task.id}:`, e.message);
+                return null;
+              });
 
-            if (!res || !res.data) continue;
+              if (!res || !res.data) continue;
 
-            if (isSuno) {
-              const status = res.data.status;
-              const sunoData = res.data.response?.sunoData || [];
-              if (status === 'SUCCESS' || (status === 'FIRST_SUCCESS' && sunoData.length > 0)) {
-                updateTaskStatus(task.id, 'completed', sunoData[0]?.audioUrl, undefined, sunoData);
-              } else if (['CREATE_TASK_FAILED', 'GENERATE_AUDIO_FAILED', 'SENSITIVE_WORD_ERROR'].includes(status)) {
-                updateTaskStatus(task.id, 'failed', undefined, res.data.errorMessage || status);
-              }
-            } else {
               const state = res.data.state;
               if (state === 'success') {
                 let resultUrl = '';
@@ -714,7 +692,6 @@ function TaskView() {
                 updateTaskStatus(task.id, 'failed', undefined, res.data.failMsg || 'Generation failed');
               }
             }
-          }
         } catch (e) {
           console.error(`Task check failed for ${task.id}`, e);
         }
@@ -789,35 +766,7 @@ function TaskView() {
               </div>
             )}
 
-            {t.status === 'completed' && t.batchResults && t.batchResults.length > 0 ? (
-              <div className="space-y-4 pt-2">
-                {t.batchResults.map((item, idx) => (
-                  <div key={idx} className="bg-white/50 dark:bg-black/20 p-4 rounded-3xl border border-pink-50 dark:border-pink-900/30 flex flex-col sm:flex-row gap-4">
-                    <div className="relative w-full sm:w-24 h-24 shrink-0 overflow-hidden rounded-2xl shadow-sm border border-white/40">
-                      <img src={item.imageUrl} alt={item.title || 'Cover'} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent flex items-end p-2">
-                        <Disc className="text-white/80 animate-[spin_4s_linear_infinite]" size={14} />
-                      </div>
-                    </div>
-                    <div className="flex-1 space-y-3">
-                      <div className="space-y-0.5">
-                        <h4 className="font-bold text-gray-900 dark:text-gray-100 text-sm leading-tight line-clamp-1">{item.title || 'Suno Generation'}</h4>
-                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-widest">{item.tags || 'Music'}</p>
-                      </div>
-                      <audio controls src={item.audioUrl} className="w-full h-8 brightness-110 contrast-125 dark:invert" />
-                      <div className="flex gap-2">
-                        <a href={item.audioUrl} target="_blank" rel="noreferrer" className="flex-1 bg-pink-500 hover:bg-pink-600 text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all">
-                          <Download size={12} /> MP3
-                        </a>
-                        <a href={item.imageUrl} target="_blank" rel="noreferrer" className="bg-white dark:bg-gray-800 text-pink-500 border border-pink-100 dark:border-pink-900/40 p-2 rounded-xl hover:bg-pink-50 transition-all">
-                          <ExternalLink size={12} />
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : t.status === 'completed' && t.resultUrl && (
+            {t.status === 'completed' && t.resultUrl && (
               <a href={t.resultUrl} target="_blank" rel="noreferrer" className="mt-2 text-center text-xs bg-pink-500 text-white font-bold py-3 rounded-2xl hover:bg-pink-600 transition-all shadow-lg shadow-pink-100 dark:shadow-none uppercase tracking-widest">
                 Unduh Hasil
               </a>
